@@ -1,0 +1,366 @@
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+POP.PARTY1 <- jailpop_polparty14
+```
+
+
+```{r}
+# I CREATED TEH VARIABLES AND CHANGED THEIR NAMES SO THAT THEY CAN MERGE WITH THE OTHER DATASET
+pop2 <- na.omit(POP.PARTY1)
+
+pop2 <- dplyr::rename(pop2, party = X6)
+
+pop2 <- dplyr::select(pop2,-State)
+
+pop2 <- dplyr::rename(pop2, STATE=X2)
+```
+
+```{r}
+install.packages("Hmisc")
+library(Hmisc)
+#summary stats
+describe(pop2) 
+```
+
+
+```{r}
+# I PULLED THE VARIABLES I WANT TO USE FOR THIS EXAMPLE
+ASJ14 <- dplyr::select(ASJ2014, ADP, STATE, RATED, UNCONV, FACLID, FACILITY)
+
+ASJ14 <- na.omit(ASJ14)
+# creating a column called 'party' with NA values
+ASJ14[c("party")] <- NA
+# CONVERTING NAs to 0
+ASJ14[is.na(ASJ14)] <- 0
+```
+
+```{r}
+#summary statistics
+describe(ASJ14) 
+
+```
+
+```{r}
+#MERGING THE TWO DATASETS TOGETEHR SO I CAN NOW MANIPUTE THEM TO DO THE HLM
+State.Jail14 <-merge(pop2,ASJ14,by="STATE")
+
+STJ14 <- dplyr::select(State.Jail14, - party.y)
+
+STJ14 <- dplyr::rename(STJ14, PARTY = party.x)
+
+```
+
+```{r}
+STJ14 <- merge(STJ14, STATEPOV14, by="STATE")
+```
+
+
+```{r}
+STJ14$scode[STJ14$PARTY=="Democratic"] <- "1" 
+STJ14$scode[STJ14$PARTY=="Republican"] <- "2" 
+
+STJ14 <- dplyr::rename(STJ14,PARTY.1 = scode)
+
+
+```
+
+```{r}
+
+colnames(STJ14)[colnames(STJ14) == '.% change in daily Ave. Jail inmate by state between 2013 - 14'] <- 'ADP.STATE.CHANGE'
+
+```
+
+```{r}
+#REMOVING THE % FROMT THE VARIABLE FOR ADP.STATE.CHANGE
+STJ14 <- dplyr::select(STJ14, - ADP.STATE.CHANGE)
+```
+
+```{r}
+#CONVERTING TON NUMERIC FROM CHAR.
+
+STJ14$PARTY.1 <- as.numeric(as.character(STJ14$PARTY.1))
+STJ14$RATED <- as.numeric(as.character(STJ14$RATED))
+STJ14$ADP <- as.numeric(as.character(STJ14$ADP))
+
+STJ14$UNCONV <- as.numeric(as.character(STJ14$UNCONV))
+
+```
+
+```{r}
+#summary statistics 
+describe(STJ14) 
+
+```
+
+```{r}
+# Add a Normal Curve (Thanks to Peter Dalgaard)
+# variable = ADP
+x <- STJ14$ADP 
+h<-hist(x, breaks=10, col="red", xlab="Average daily population", 
+  	main="Histogram with Normal Curve") 
+xfit<-seq(min(x),max(x),length=40) 
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x)) 
+yfit <- yfit*diff(h$mids[1:2])*length(x) 
+lines(xfit, yfit, col="blue", lwd=2)
+```
+
+```{r}
+x <- STJ14$RATED 
+h<-hist(x, breaks=10, col="red", xlab="RATED", 
+  	main="Histogram with Normal Curve") 
+xfit<-seq(min(x),max(x),length=40) 
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x)) 
+yfit <- yfit*diff(h$mids[1:2])*length(x) 
+lines(xfit, yfit, col="blue", lwd=2)
+```
+
+```{r}
+x <- STJ14$PARTY.1 
+h<-hist(x, breaks=10, col="red", xlab="PARTY.1", 
+  	main="Histogram with Normal Curve") 
+xfit<-seq(min(x),max(x),length=40) 
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x)) 
+yfit <- yfit*diff(h$mids[1:2])*length(x) 
+lines(xfit, yfit, col="blue", lwd=2)
+```
+
+```{r}
+x <- STJ14$POVERITY 
+h<-hist(x, breaks=10, col="red", xlab="POVERITY", 
+  	main="Histogram with Normal Curve") 
+xfit<-seq(min(x),max(x),length=40) 
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x)) 
+yfit <- yfit*diff(h$mids[1:2])*length(x) 
+lines(xfit, yfit, col="blue", lwd=2)
+```
+
+```{r}
+#GENRATED THE NEW VARIABLE THAT CALCUATED FILLED CAPACITY 
+STJ14$OCCUPIED <- STJ14$ADP/STJ14$RATED
+```
+
+```{r}
+x <- STJ14$OCCUPIED 
+h<-hist(x, breaks=10, col="red", xlab="OCCUPIED", 
+  	main="Histogram with Normal Curve") 
+xfit<-seq(min(x),max(x),length=40) 
+yfit<-dnorm(xfit,mean=mean(x),sd=sd(x)) 
+yfit <- yfit*diff(h$mids[1:2])*length(x) 
+lines(xfit, yfit, col="blue", lwd=2)
+```
+
+```{r}
+# Tried a model using regular linear regression w/ only one variable. UNCONV, which is the total number of unconvicted individuals in a jail.
+OnePre <- lm(formula = OCCUPIED ~  UNCONV , data = STJ14)
+
+OnePre
+summary(OnePre)
+
+>#Call:
+#lm(formula = OCCUPIED ~ UNCONV, data = STJ14)
+
+#Coefficients:
+#(Intercept)       UNCONV  
+# 8.296e-01    4.222e-05  
+#
+#Call:
+#lm(formula = OCCUPIED ~ UNCONV, data = STJ14)
+
+#Residuals:
+#     Min       1Q   Median       3Q      Max 
+# -0.75595 -0.15273 -0.00909  0.11869  2.33220 
+
+#Coefficients:
+#             Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) 8.296e-01  1.077e-02   77.03   <2e-16 ***
+# UNCONV      4.222e-05  1.398e-05    3.02   0.0026 ** 
+---
+#Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+
+#Residual standard error: 0.2876 on 876 degrees of freedom
+#Multiple R-squared:  0.0103,	Adjusted R-squared:  0.009174 
+# F-statistic:  9.12 on 1 and 876 DF,  p-value: 0.002601
+
+# The finding were statistically sig at a 0.01 p value.  We also see that occupied capacity increases by 4.22% for every unconvicted person in a local jail.  
+  
+```
+
+
+```{r}
+plot(OnePre)
+```
+
+
+```{r}
+summary(OnePre)
+plot(OnePre)
+abline(OnePre)
+plot(OnePre)
+names(OnePre)
+OnePre$coefficients
+```
+
+```{r}
+MultiPre <- lm(formula = OCCUPIED ~ UNCONV + POVERITY, data = STJ14)
+summary(MultiPre)
+plot(MultiPre)
+abline(MultiPre)
+plot(MultiPre)
+names(MultiPre)
+MultiPre$coefficients
+```
+
+
+```{r}
+install.packages("lme4")
+library(lme4)
+```
+
+```{r}
+fm.null<-lmer(OCCUPIED~1 + (1|STATE), STJ14)
+summary(fm.null)
+```
+
+
+```{r}
+bwplot(STATE~resid(fm.null), STJ14)
+```
+
+
+```{r}
+fm1<-lmer(OCCUPIED~UNCONV + (1|STATE), STJ14)
+summary(fm1)
+#Linear mixed model fit by REML ['lmerMod']
+#Formula: OCCUPIED ~ UNCONV + (1 | STATE)
+#   Data: STJ14
+
+#REML criterion at convergence: 140
+
+#Scaled residuals: 
+#    Min      1Q  Median      3Q     Max 
+#-2.8526 -0.5323  0.0107  0.4976  7.2533 
+
+#Random effects:
+# Groups   Name        Variance Std.Dev.
+# STATE    (Intercept) 0.01663  0.1290  
+# Residual             0.06141  0.2478  
+#Number of obs: 878, groups:  STATE, 45
+
+#Fixed effects:
+#             Estimate Std. Error t value
+#(Intercept) 8.075e-01  2.231e-02   36.19
+#UNCONV      4.963e-05  1.267e-05    3.92
+
+#Correlation of Fixed Effects:
+#       (Intr)
+#UNCONV -0.172
+```
+
+```{r}
+coef(fm1)
+ # different intercepts by state while the linear model only had one intercept.  This random variation is due to the fact that it is acknowledging the variance effect by state. 
+$STATE
+   (Intercept)       UNCONV
+AL   0.7757773 4.962532e-05
+AR   0.8432886 4.962532e-05
+AZ   0.7206193 4.962532e-05
+CA   0.8105597 4.962532e-05
+CO   0.7509087 4.962532e-05
+DC   0.7710909 4.962532e-05
+FL   0.7475660 4.962532e-05
+GA   0.7177134 4.962532e-05
+IA   0.7421599 4.962532e-05
+ID   0.7594465 4.962532e-05
+IL   0.7408297 4.962532e-05
+IN   0.8541054 4.962532e-05
+KS   0.7758390 4.962532e-05
+KY   1.0294573 4.962532e-05
+LA   0.8242829 4.962532e-05
+MA   0.9559668 4.962532e-05
+MD   0.7474856 4.962532e-05
+ME   0.8163389 4.962532e-05
+MI   0.9096808 4.962532e-05
+MN   0.7375585 4.962532e-05
+MO   0.7745471 4.962532e-05
+MS   0.7958859 4.962532e-05
+MT   0.7361618 4.962532e-05
+NC   0.7906800 4.962532e-05
+ND   0.7766720 4.962532e-05
+NE   0.6311484 4.962532e-05
+NH   0.7652935 4.962532e-05
+NJ   0.8301399 4.962532e-05
+NM   0.8272726 4.962532e-05
+NV   0.6803265 4.962532e-05
+NY   0.7886579 4.962532e-05
+OH   0.8561991 4.962532e-05
+OK   0.7657196 4.962532e-05
+OR   0.7360675 4.962532e-05
+PA   0.8620875 4.962532e-05
+SC   0.8133842 4.962532e-05
+SD   0.7929789 4.962532e-05
+TN   0.9489038 4.962532e-05
+TX   0.7373829 4.962532e-05
+UT   0.8414125 4.962532e-05
+VA   1.3626725 4.962532e-05
+WA   0.8593031 4.962532e-05
+WI   0.7843189 4.962532e-05
+WV   0.8712595 4.962532e-05
+WY   0.6788023 4.962532e-05
+
+attr(,"class")
+[1] "coef.mer"
+```
+
+```{r}
+anova(fm.null,fm1)
+```
+
+```{r}
+
+fm2<-lmer(OCCUPIED~UNCONV + (POVERITY|STATE), STJ14)
+summary(fm2)
+#Linear mixed model fit by REML ['lmerMod']
+#Formula: OCCUPIED ~ UNCONV + (PARTY.1 | STATE)
+#   Data: STJ14
+
+#REML criterion at convergence: 132.1
+
+#Scaled residuals: 
+#    Min      1Q  Median      3Q     Max 
+#-2.8248 -0.5429  0.0111  0.5111  7.2294 
+
+#Random effects:
+# Groups   Name        Variance Std.Dev. Corr 
+# STATE    (Intercept) 0.02023  0.1422        
+#          PARTY.1     0.02023  0.1422   -1.00
+# Residual             0.06130  0.2476        
+#Number of obs: 878, groups:  STATE, 45
+
+#Fixed effects:
+#             Estimate Std. Error t value
+#(Intercept) 7.912e-01  1.686e-02   46.92
+#UNCONV      5.143e-05  1.248e-05    4.12
+
+#Correlation of Fixed Effects:
+#       (Intr)
+#UNCONV -0.301
+```
+
+
+```{r}
+# COMPARING THE THREE MODELS
+anova(fm.null, fm1, fm2)
+```
+```{r}
+plot(ranef(fm2))
+```
+
+```{r}
+qqmath(~resid(fm2))
+```
+
+
